@@ -89,11 +89,11 @@
         const loader = new GLTFLoader();
         const loaderElement = document.getElementById('loader');
         loader.load(
-            'assets/models/bakedfinal15.glb',
+            'assets/models/bakedfinal17.glb',
             (gltf) => {
                 
                 model = gltf.scene;  
-                //console.log(model," model");      
+                console.log(model," model");      
                 model.position.set(0, 0, 0);
                 model.scale.set(5, 5,5);
                 // --- IMPORTANT: FINDING YOUR PRODUCTS ---
