@@ -233,7 +233,7 @@
                     // We keep 'isAnimating' true for 800ms more to cover the text animation.
                     setTimeout(() => {
                         isAnimating = false;
-                    }, 800); // This duration should match your CSS transition time
+                    }, 500); // This duration should match your CSS transition time
                     
                 }
                 else
