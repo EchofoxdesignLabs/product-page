@@ -89,7 +89,7 @@
         const loader = new GLTFLoader();
         const loaderElement = document.getElementById('loader');
         loader.load(
-            'assets/models/bakedfinal18.glb',
+            'assets/models/bakedfinal19.glb',
             (gltf) => {
                 
                 model = gltf.scene;  
@@ -107,7 +107,7 @@
                 { name: "Monitor", targetOffset: new THREE.Vector3(-5, -1.5, 0), cameraPosition: new THREE.Vector3(300, 5, -52), category: "Web App", title: "Stevie Awards", description: "Advanced monitoring solutions for complex systems, providing real-time data and insights.", link: "#" },
                 { name: "Games", targetOffset: new THREE.Vector3(-5, 0, 0), cameraPosition: new THREE.Vector3(400, 5, -54), category: "Gaming", title: "Trails of Echos", description: "Interactive and engaging gaming experiences built with modern web technologies.", link: "#" },
                 { name: "VR", targetOffset: new THREE.Vector3(-4, 0, 0), cameraPosition: new THREE.Vector3(500, 5, -50), category: "Gaming", title: "VR Defender", description: "A digital business card to share your contact information seamlessly.", link: "#" },
-                { name: "Brand", targetOffset: new THREE.Vector3(-5, 0, 2), cameraPosition: new THREE.Vector3(600, 15, -51), category: "Utility", title: "Kydlabs", description: "Built for the top performing DJs, Promoters, Venues, Festivals and Artists.", link: "#" },
+                { name: "Brand", targetOffset: new THREE.Vector3(-5, -3, 2), cameraPosition: new THREE.Vector3(600, 15, -51), category: "Utility", title: "Kydlabs", description: "Built for the top performing DJs, Promoters, Venues, Festivals and Artists.", link: "#" },
             ];
                 const productNames = productsWithData.map(p => p.name);;
                 //console.log("Loaded model's children:");
@@ -206,7 +206,7 @@
     }
 
     // --- NEW: CAMERA ANIMATION FUNCTION ---
-    function focusCameraOnTarget(targetIndex, duration = 1.5) { // Default duration of 1.2 seconds
+    function focusCameraOnTarget(targetIndex, duration = 1) { // Default duration of 1.2 seconds
         if (isAnimating && duration > 0) return;
         isAnimating = true;
         // Fade out the current text
