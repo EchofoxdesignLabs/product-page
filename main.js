@@ -89,7 +89,7 @@
         const loader = new GLTFLoader();
         const loaderElement = document.getElementById('loader');
         loader.load(
-            'assets/models/bakedfinal22.glb',
+            'assets/models/bakedfinal23.glb',
             (gltf) => {
                 
                 model = gltf.scene;  
@@ -107,7 +107,7 @@
                 { name: "Monitor", targetOffset: new THREE.Vector3(-5, -1.5, 0), cameraPosition: new THREE.Vector3(300, 5, -52), category: "Web App", title: "Stevie Awards", description: "Advanced monitoring solutions for complex systems, providing real-time data and insights.", link: "#" },
                 { name: "Games", targetOffset: new THREE.Vector3(-5, 0, 0), cameraPosition: new THREE.Vector3(400, 5, -54), category: "Gaming", title: "Trails of Echos", description: "Interactive and engaging gaming experiences built with modern web technologies.", link: "#" },
                 { name: "VR", targetOffset: new THREE.Vector3(-4, 0, 0), cameraPosition: new THREE.Vector3(500, 5, -50), category: "Gaming", title: "VR Defender", description: "A digital business card to share your contact information seamlessly.", link: "#" },
-                { name: "Brand", targetOffset: new THREE.Vector3(0, 0, 2), cameraPosition: new THREE.Vector3(600, 10, -60), category: "Utility", title: "Brand", description: "Built for the top performing DJs, Promoters, Venues, Festivals and Artists.", link: "#" },
+                //{ name: "Brand", targetOffset: new THREE.Vector3(0, 0, 2), cameraPosition: new THREE.Vector3(600, 10, -60), category: "Utility", title: "Brand", description: "Built for the top performing DJs, Promoters, Venues, Festivals and Artists.", link: "#" },
                 { name: "Chewy", targetOffset: new THREE.Vector3(-6, 0, 2), cameraPosition: new THREE.Vector3(700, 5, -51), category: "Utility", title: "Chewy", description: "Built for the top performing DJs, Promoters, Venues, Festivals and Artists.", link: "#" },
             ];
                 const productNames = productsWithData.map(p => p.name);;
