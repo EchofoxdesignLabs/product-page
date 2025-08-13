@@ -2,8 +2,11 @@
     import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
     import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
     import { gsap } from 'gsap/gsap-core';
+    import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+    import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
 
-    let scene, camera,renderer,controls;
+    let scene, camera,renderer,controls,composer, renderPass, bokehPass;
     const clock = new THREE.Clock();
     // --- NEW VARIABLES FOR SCROLL NAVIGATION ---
     let productTargets = []; // This will store our individual product models
@@ -89,7 +92,7 @@
         const loader = new GLTFLoader();
         const loaderElement = document.getElementById('loader');
         loader.load(
-            'assets/models/bakedfinal23.glb',
+            'assets/models/bakedfinal24.glb',
             (gltf) => {
                 
                 model = gltf.scene;  
@@ -108,15 +111,33 @@
                 { name: "Games", targetOffset: new THREE.Vector3(-5, 0, 0), cameraPosition: new THREE.Vector3(400, 5, -54), category: "Gaming", title: "Trails of Echos", description: "Interactive and engaging gaming experiences built with modern web technologies.", link: "#" },
                 { name: "VR", targetOffset: new THREE.Vector3(-4, 0, 0), cameraPosition: new THREE.Vector3(500, 5, -50), category: "Gaming", title: "VR Defender", description: "A digital business card to share your contact information seamlessly.", link: "#" },
                 //{ name: "Brand", targetOffset: new THREE.Vector3(0, 0, 2), cameraPosition: new THREE.Vector3(600, 10, -60), category: "Utility", title: "Brand", description: "Built for the top performing DJs, Promoters, Venues, Festivals and Artists.", link: "#" },
-                { name: "Chewy", targetOffset: new THREE.Vector3(-6, 0, 2), cameraPosition: new THREE.Vector3(700, 5, -51), category: "Utility", title: "Chewy", description: "Built for the top performing DJs, Promoters, Venues, Festivals and Artists.", link: "#" },
+                { name: "Chewy", targetOffset: new THREE.Vector3(-6, 0, 2), cameraPosition: new THREE.Vector3(600, 5, -51), category: "Utility", title: "Chewy", description: "Built for the top performing DJs, Promoters, Venues, Festivals and Artists.", link: "#" },
             ];
                 const productNames = productsWithData.map(p => p.name);;
                 //console.log("Loaded model's children:");
                 model.traverse((child) => {
                     console.log(child.name); // This log helps you find the correct names!
                     if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
+                        child.castShadow = true;
+                        child.receiveShadow = true;
+                        if(child.material)
+                        {
+                            const mats = Array.isArray(child.material) ? child.material : [child.material];
+                            mats.forEach(mat => {
+                                // If the material uses a baked color map
+                                if (mat.map) {
+                                mat.map.encoding = THREE.sRGBEncoding;                     // correct color space
+                                mat.map.generateMipmaps = true;                           // enable mipmaps
+                                mat.map.minFilter = THREE.LinearMipmapLinearFilter;       // good min filter
+                                mat.map.magFilter = THREE.LinearFilter;                   // smooth magnification
+                                mat.map.anisotropy = renderer.capabilities.getMaxAnisotropy(); // crisp at oblique angles
+                                mat.map.needsUpdate = true;
+                                }
+                                // If you have emissiveMap / aoMap / etc handle similarly
+                                if (mat.emissiveMap) { mat.emissiveMap.encoding = THREE.sRGBEncoding; mat.emissiveMap.anisotropy = renderer.capabilities.getMaxAnisotropy(); mat.emissiveMap.needsUpdate = true; }
+                                mat.needsUpdate = true;
+                            });
+                        }
                     }
                     // If a child's name is in our list, add it to our targets array.
                     const productData = productsWithData.find(p => p.name === child.name);
@@ -149,6 +170,7 @@
                 console.error('Error loading glTF model:', error);
             }
         );
+        initPostprocessing();
         // --- Intersection Observer Setup ---
         const observerOptions = {
         root: null, 
@@ -226,7 +248,23 @@
         const tl = gsap.timeline({
             onComplete: () => {  
                 baseCameraPosition = cameraPosition;
-                console.log(baseCameraPosition," baseCameraPosition");
+                // compute distance between camera and final target to use as focus
+                try {
+                    if (bokehPass && bokehPass.materialBokeh && bokehPass.materialBokeh.uniforms && bokehPass.materialBokeh.uniforms.focus) {
+                        // compute world distance
+                        const camPos = new THREE.Vector3(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+                        const dist = camPos.distanceTo(finalTarget);
+                        // Tune a little: BokehPass focus expects a value in scene units — adjust with a small offset if needed
+                        bokehPass.materialBokeh.uniforms.focus.value = dist;
+                    } else if (bokehPass && bokehPass.params) {
+                        // fallback: some BokehPass builds store params object
+                        const camPos = new THREE.Vector3(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+                        const dist = camPos.distanceTo(finalTarget);
+                        bokehPass.params.focus = dist;
+                    }
+                } catch (e) {
+                    console.warn("Could not set bokeh focus dynamically:", e);
+                }
                 // After the camera move, fade in the new text
                 if (duration > 0) {
                     
@@ -329,15 +367,42 @@
         focusCameraOnTarget(currentTargetIndex);
     }
     function onResize() {
-    camera.aspect = innerWidth/innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(innerWidth, innerHeight);
+        camera.aspect = innerWidth/innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+        if (composer) {
+            composer.setSize(innerWidth, innerHeight);
+            composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        }
     }
     // This function updates the mouse coordinates for the parallax effect.
     function onMouseMove(event) {
         // Normalize mouse position from -1 to 1
         mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    }
+
+    function initPostprocessing() {
+        composer = new EffectComposer(renderer);
+        // keep composer pixel ratio reasonable (avoid huge DPR on mobile)
+        composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        composer.setSize(window.innerWidth, window.innerHeight);
+
+        renderPass = new RenderPass(scene, camera);
+        composer.addPass(renderPass);
+
+        // BokehPass — initial params; we'll update focus dynamically later
+        bokehPass = new BokehPass(scene, camera, {
+            focus: 60.0,        // approximate starting focus distance (tweakable)
+            aperture: 0.0003,   // smaller = subtler blur; increase for a stronger effect
+            maxblur: 0.02,      // clamp on blur radius
+            width: window.innerWidth,
+            height: window.innerHeight
+        });
+
+        // keep it enabled by default; you can toggle for perf tests
+        bokehPass.enabled = true;
+        composer.addPass(bokehPass);
     }
 
     function animate()
@@ -364,6 +429,13 @@
         
         
         
+        // controls.update();
+        // renderer.render(scene, camera);
         controls.update();
-        renderer.render(scene, camera);
+        // use composer when available, otherwise fallback to renderer
+        if (composer) {
+            composer.render();
+        } else {
+            renderer.render(scene, camera);
+        }
     }
