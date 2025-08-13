@@ -5,6 +5,9 @@
     import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
     import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
     import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
+    import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+    import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+    import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 
     let scene, camera,renderer,controls,composer, renderPass, bokehPass;
     const clock = new THREE.Clock();
@@ -24,6 +27,15 @@
 
     // --- NEW: State variable to control when scroll hijacking is active ---
     let isScrollHijackingActive = false;
+
+    // POSTPROCESSING: three composers approach
+    let composerOriginal, composerBlur, composerFinal;
+    let blurBokehPass, blendPass;
+    // Tunables (start conservative for subtle DOF)
+    const APERTURE = 0.00018;   // small aperture -> subtle blur
+    const MAXBLUR = 0.0002;     // small max blur radius
+    const BLEND_STRENGTH = 0.1;
+    const currentBlendStrength = 0.2;
 
 
     init();
@@ -87,7 +99,6 @@
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 2.2);
         scene.add(ambientLight);
-
         let model = null;
         const loader = new GLTFLoader();
         const loaderElement = document.getElementById('loader');
@@ -242,29 +253,13 @@
         // --- APPLY THE OFFSET ---
         // The final camera target is the object's position plus its defined offset
         const finalTarget = new THREE.Vector3().addVectors(targetPosition,  targetOffset);
+        const focusDistance = cameraPosition.distanceTo(finalTarget);
         console.log(cameraPosition," cameraOffset")
         // --- DUAL GSAP ANIMATION ---
         // Animate camera position and target simultaneously for a smooth, cinematic effect.
         const tl = gsap.timeline({
             onComplete: () => {  
                 baseCameraPosition = cameraPosition;
-                // compute distance between camera and final target to use as focus
-                try {
-                    if (bokehPass && bokehPass.materialBokeh && bokehPass.materialBokeh.uniforms && bokehPass.materialBokeh.uniforms.focus) {
-                        // compute world distance
-                        const camPos = new THREE.Vector3(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-                        const dist = camPos.distanceTo(finalTarget);
-                        // Tune a little: BokehPass focus expects a value in scene units — adjust with a small offset if needed
-                        bokehPass.materialBokeh.uniforms.focus.value = dist;
-                    } else if (bokehPass && bokehPass.params) {
-                        // fallback: some BokehPass builds store params object
-                        const camPos = new THREE.Vector3(cameraPosition.x, cameraPosition.y, cameraPosition.z);
-                        const dist = camPos.distanceTo(finalTarget);
-                        bokehPass.params.focus = dist;
-                    }
-                } catch (e) {
-                    console.warn("Could not set bokeh focus dynamically:", e);
-                }
                 // After the camera move, fade in the new text
                 if (duration > 0) {
                     
@@ -296,10 +291,14 @@
             z: finalTarget.z,
             duration: duration,
             ease: "power2.out"
-        }, 0); 
+        }, 0);
+        // --- MODIFIED: Animate the focus property of the BokehPass ---
+        tl.to(bokehPass.uniforms.focus, { value: focusDistance, duration: duration, ease: "power2.out" }, 0);
 
         // Handle the initial page load (no animation duration)
         if (duration === 0) {
+            // Instantly set focus on initial load
+            bokehPass.uniforms.focus.value = focusDistance;
             updateTextContent(targetIndex);
             isAnimating = false;
         }
@@ -370,9 +369,11 @@
         camera.aspect = innerWidth/innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(innerWidth, innerHeight);
-        if (composer) {
-            composer.setSize(innerWidth, innerHeight);
-            composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        // --- MODIFIED: Resize the composer and its passes ---
+        composer.setSize(innerWidth, innerHeight);
+        if (bokehPass) {
+            bokehPass.uniforms['width'].value = innerWidth;
+            bokehPass.uniforms['height'].value = innerHeight;
         }
     }
     // This function updates the mouse coordinates for the parallax effect.
@@ -383,32 +384,36 @@
     }
 
     function initPostprocessing() {
+        // --- ADDED: Post-processing Setup ---
         composer = new EffectComposer(renderer);
-        // keep composer pixel ratio reasonable (avoid huge DPR on mobile)
-        composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-        composer.setSize(window.innerWidth, window.innerHeight);
-
-        renderPass = new RenderPass(scene, camera);
+        const renderPass = new RenderPass(scene, camera);
         composer.addPass(renderPass);
 
-        // BokehPass — initial params; we'll update focus dynamically later
         bokehPass = new BokehPass(scene, camera, {
-            focus: 60.0,        // approximate starting focus distance (tweakable)
-            aperture: 0.0003,   // smaller = subtler blur; increase for a stronger effect
-            maxblur: 0.02,      // clamp on blur radius
-            width: window.innerWidth,
-            height: window.innerHeight
+            focus: 60.0,      
+            aperture: 0.0005,  
+            maxblur: 0.009,    
+            width: innerWidth,
+            height: innerHeight
         });
-
-        // keep it enabled by default; you can toggle for perf tests
-        bokehPass.enabled = true;
         composer.addPass(bokehPass);
+        // --- ADDED: Anti-aliasing Pass ---
+        // This pass smooths the jagged edges. It should come after your main effects
+        // but before the final OutputPass.
+        const smaaPass = new SMAAPass(innerWidth * renderer.getPixelRatio(), innerHeight * renderer.getPixelRatio());
+        composer.addPass(smaaPass);
+        // --- ADDED: The Fix! ---
+        // This pass corrects the color space, preventing the darkening effect.
+        // It should always be the LAST pass in the chain.
+        const outputPass = new OutputPass();
+        composer.addPass(outputPass);
     }
 
     function animate()
     {
         requestAnimationFrame(animate);
         const t = clock.getElapsedTime();
+        const deltaTime = clock.getDelta();
 
         if(!isAnimating)
         {
@@ -430,12 +435,8 @@
         
         
         // controls.update();
-        // renderer.render(scene, camera);
+         //renderer.render(scene, camera);
         controls.update();
-        // use composer when available, otherwise fallback to renderer
-        if (composer) {
-            composer.render();
-        } else {
-            renderer.render(scene, camera);
-        }
+        composer.render(deltaTime);
+        
     }
