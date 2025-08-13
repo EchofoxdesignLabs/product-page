@@ -384,6 +384,9 @@
     }
 
     function initPostprocessing() {
+        const fogColor = 0x111111; // A dark grey, match your background
+        scene.fog = new THREE.Fog(fogColor, 10, 80); // Starts at 10 units, fully faded by 120
+        scene.background = new THREE.Color(fogColor); // Match the background color to the fog
         // --- ADDED: Post-processing Setup ---
         composer = new EffectComposer(renderer);
         const renderPass = new RenderPass(scene, camera);
