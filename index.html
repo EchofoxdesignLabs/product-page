@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Product Showcase</title>
+    <style>
+        /* --- General Setup --- */
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Prevent scrollbars on the page */
+            background-color: #111; /* A dark background color */
+        }
+
+        /* The canvas will be positioned by the script */
+        canvas {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1; /* Canvas is the base layer */
+        }
+        
+        /* --- Custom Font Loading --- */
+        @font-face {
+            font-family: 'Redcollar';
+            src: url('assets/fonts/Redcollar.woff2') format('woff2'); /* Assumes .woff2 format */
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        @font-face {
+            font-family: 'OttercoDisplay-Regular';
+            src: url('assets/fonts/OttercoDisplay-Regular.woff2') format('woff2'); /* Assumes .woff2 format */
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        /* --- Text Overlay Styles --- */
+        .text-overlay {
+            position: absolute;
+            top: 50%;
+            left: 10%;
+            transform: translateY(-50%);
+            color: white;
+            max-width: 550px;
+            z-index: 10; /* Ensure text is on top of the canvas */
+            pointer-events: none; /* Allow mouse events (like orbit controls) to pass through */
+        }
+
+        .text-content {
+            opacity: 0;
+            transform: translateY(20px); 
+            transition: opacity 0.4s ease-in-out, transform 0.4s ease-in-out;
+        }
+
+        .text-content.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* --- NEW: Category Title Styles --- */
+        .product-category {
+            display: flex;
+            align-items: center;
+            font-family: 'OttercoDisplay-Regular', sans-serif;
+            font-size: 0.9rem;
+            text-transform: lowercase;
+            letter-spacing: 1px;
+            margin-bottom: 1.5rem;
+        }
+
+        .product-category::before {
+            content: '';
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: red;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+
+        .text-content h1 {
+            font-family: 'Redcollar', sans-serif;
+            font-size: 4rem;
+            margin: 0 0 1rem 0;
+            font-weight: 600;
+            letter-spacing: -1px;
+            white-space: nowrap;
+        }
+
+        .text-content #product-description {
+            font-family: 'OttercoDisplay-Regular', sans-serif;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin: 0 0 3.5rem 0; 
+            max-width: 350px;
+        }
+        .text-content #product-category {
+            font-family: 'OttercoDisplay-Regular', sans-serif;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin: 0 0 1.6rem 0; 
+            max-width: 350px;
+        }
+
+        /* --- MODIFIED: Explore Button Styles for New Hover Effect --- */
+        a.explore-link {
+            display: inline-block; /* Needed for transform and positioning context */
+            position: relative; /* Context for the pseudo-element */
+            font-family: 'Redcollar', sans-serif;
+            font-size: 1.2rem; /* Slightly larger */
+            font-weight: 500;
+            color: white;
+            text-decoration: none;
+            text-transform: none;
+            padding-bottom: 8px; /* Space for the border */
+            border-bottom: 2px solid red;
+            pointer-events: all; /* Make ONLY the link clickable */
+            transition: border-bottom-color 0.4s ease-out;
+        }
+
+        /* This is the red text layer that will wipe up on hover */
+        a.explore-link::after {
+            content: attr(data-text); /* Get text from data-text attribute */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            color: red;
+            
+            /* Clip the text, revealing it from the bottom up on hover */
+            clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0 100%);
+            transition: clip-path 0.4s cubic-bezier(0.23, 1, 0.32, 1); /* Easing for a nice effect */
+        }
+
+        a.explore-link:hover {
+            border-bottom-color: transparent; 
+        }
+
+        a.explore-link:hover::after {
+            /* Reveal the pseudo-element by changing the clip-path */
+            clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+        }
+        /* ------------------ LOADER OVERLAY ------------------ */
+        /* Loader overlay styles */
+        
+    </style>
+  <script type="module" crossorigin src="/product-page/assets/index-dQDqKVyW.js"></script>
+</head>
+<body>
+    <!-- Loader overlay (visible while GLB downloads)
+    <div id="loader" class="loader-overlay" role="status" aria-live="polite" aria-hidden="false">
+      <div class="loader-card" role="presentation">
+        <div class="spinner" aria-hidden="true">
+          <svg viewBox="0 0 50 50" class="spinner-svg" width="48" height="48" aria-hidden="true">
+            <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="4"></circle>
+          </svg>
+        </div>
+        <div class="loader-text">
+          <div id="loader-status">Loading model</div>
+          <div id="loader-progress">—</div>
+        </div>
+      </div>
+    </div> -->
+
+    <!-- This div is the container for all the text content -->
+    <div class="text-overlay">
+        <div id="text-container" class="text-content">
+            <!-- NEW: Element for the category title -->
+            <p id="product-category" class="product-category"></p>
+            <h1 id="product-title"></h1>
+            <p id="product-description"></p>
+            <!-- The link now has a data-text attribute for the hover effect -->
+            <a href="#" id="product-link" class="explore-link" data-text="Explore" target="_blank">Explore</a>
+        </div>
+    </div>
+
+    <!-- The main.js script will create and manage the 3D canvas -->
+
+</body>
+</html>
