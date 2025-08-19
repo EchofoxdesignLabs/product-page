@@ -5,9 +5,9 @@
     import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
     import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
     import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js';
-    import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
     import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
     import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
+    import { DRACOLoader } from "three/examples/jsm/Addons.js"; 
 
     let scene, camera,renderer,controls,composer, renderPass, bokehPass;
     const clock = new THREE.Clock();
@@ -28,22 +28,13 @@
     // --- NEW: State variable to control when scroll hijacking is active ---
     let isScrollHijackingActive = false;
 
-    // POSTPROCESSING: three composers approach
-    let composerOriginal, composerBlur, composerFinal;
-    let blurBokehPass, blendPass;
-    // Tunables (start conservative for subtle DOF)
-    const APERTURE = 0.00018;   // small aperture -> subtle blur
-    const MAXBLUR = 0.0002;     // small max blur radius
-    const BLEND_STRENGTH = 0.1;
-    const currentBlendStrength = 0.2;
-
 
     init();
     animate();
     function init()
     {
         scene = new THREE.Scene();
-        camera     = new THREE.PerspectiveCamera(24, innerWidth/innerHeight, 0.01, 100000);
+        camera = new THREE.PerspectiveCamera(24, innerWidth/innerHeight, 0.01, 100000);
         camera.position.set(0, 0, 0);
         baseCameraPosition.copy(camera.position); // Store the base position for parallax
         
@@ -76,38 +67,20 @@
 
         //lighting
         // // Directional Light (updated position and rotation from screenshot)
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-        dirLight.position.set(100,140,40);
-        dirLight.castShadow = false; // Enable shadows for this light
-        dirLight.shadow.mapSize.width = 4096; // Increased resolution for crisper shadows
-        dirLight.shadow.mapSize.height = 4096;
-        // with PCFSoftShadowMap active on your renderer:
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        dirLight.shadow.radius = 20;
-        dirLight.shadow.camera.near = 0.5;
-        dirLight.shadow.camera.far = 400;
-        // CORRECTED: Increased shadow camera frustum size to ensure it covers the model and ground
-        dirLight.shadow.camera.left = -150;
-        dirLight.shadow.camera.right = 150;
-        dirLight.shadow.camera.top = 150;
-        dirLight.shadow.camera.bottom = -150;
-        dirLight.shadow.bias = -0.0001; // push the shadow map sample back onto the surface
-        dirLight.shadow.normalBias = 0.05; // helps even out stretched shadows
-        scene.add(dirLight);
-        scene.add(dirLight.target);
-        dirLight.target.position.set(50, 60, 20);
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 2.2);
         scene.add(ambientLight);
         let model = null;
         const loader = new GLTFLoader();
+        const dracoLoader = new DRACOLoader();
+        loader.setDRACOLoader(dracoLoader);
+        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
         const loaderElement = document.getElementById('loader');
         loader.load(
-            'assets/models/bakedfinal24.glb',
+            'assets/models/bakedfinal25.glb',
             (gltf) => {
                 
-                model = gltf.scene;  
-                console.log(model," model");      
+                model = gltf.scene;       
                 model.position.set(0, 0, 0);
                 model.scale.set(5, 5,5);
                 // --- IMPORTANT: FINDING YOUR PRODUCTS ---
@@ -125,9 +98,8 @@
                 { name: "Chewy", targetOffset: new THREE.Vector3(-6, 0, 2), cameraPosition: new THREE.Vector3(600, 5, -51), category: "Utility", title: "Chewy", description: "Built for the top performing DJs, Promoters, Venues, Festivals and Artists.", link: "#" },
             ];
                 const productNames = productsWithData.map(p => p.name);;
-                //console.log("Loaded model's children:");
+                
                 model.traverse((child) => {
-                    console.log(child.name); // This log helps you find the correct names!
                     if (child.isMesh) {
                         child.castShadow = true;
                         child.receiveShadow = true;
@@ -161,7 +133,7 @@
                 // It's better to sort them to ensure a consistent order
                 // Sort based on the original array order to fix the scroll jumping issue.
                 productTargets.sort((a, b) => productNames.indexOf(a.object.name) - productNames.indexOf(b.object.name));
-                //console.log(productTargets,"productTargets");
+                
                 scene.add(model);
                 
                 // Hide the loader and set the initial camera position
@@ -254,7 +226,6 @@
         // The final camera target is the object's position plus its defined offset
         const finalTarget = new THREE.Vector3().addVectors(targetPosition,  targetOffset);
         const focusDistance = cameraPosition.distanceTo(finalTarget);
-        console.log(cameraPosition," cameraOffset")
         // --- DUAL GSAP ANIMATION ---
         // Animate camera position and target simultaneously for a smooth, cinematic effect.
         const tl = gsap.timeline({
@@ -303,24 +274,6 @@
             isAnimating = false;
         }
     }
-    // --- NEW: SCROLL HANDLING FUNCTION ---
-    // function onWheel(event) {
-    //     if (isAnimating || productTargets.length === 0) return; // Ignore scroll if an animation is playing
-
-    //     // Determine scroll direction
-    //     const scrollDirection = event.deltaY > 0 ? 1 : -1;
-
-    //     currentTargetIndex += scrollDirection;
-
-    //     // Loop back around if we go past the start or end
-    //     if (currentTargetIndex >= productTargets.length) {
-    //         currentTargetIndex = 0;
-    //     } else if (currentTargetIndex < 0) {
-    //         currentTargetIndex = productTargets.length - 1;
-    //     }
-        
-    //     focusCameraOnTarget(currentTargetIndex);
-    // }
     // --- MODIFIED: REWRITTEN SCROLL HANDLING LOGIC ---
     function onWheel(event) {
         // 1. Check if scroll hijacking should be active.
